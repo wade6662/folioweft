@@ -1,0 +1,14 @@
+node_modules/
+coverage/
+.env
+.env.*
+.npmrc
+binding.json
+team-binding.json
+archive/
+data/
+logs/
+*.sqlite*
+*.log
+*.tgz
+.DS_Store

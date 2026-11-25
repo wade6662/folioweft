@@ -1,0 +1,21 @@
+{
+  "name": "folioweft",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evidence-linked team notebooks and Wiki memory over TencentDB Agent Memory",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16"
+  },
+  "scripts": {
+    "test": "node --test src/team-memory.test.mjs",
+    "start": "node src/team-memory-mcp.mjs",
+    "cli": "node src/team-memory-cli.mjs",
+    "demo": "node examples/demo.mjs",
+    "licenses:check": "node scripts/check-licenses.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1"
+  }
+}

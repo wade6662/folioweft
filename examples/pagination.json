@@ -1,0 +1,9 @@
+{
+  "project": "Lantern Catalog",
+  "topic": "catalog-pagination",
+  "wiki": "wiki/project-catalog",
+  "rows": 101,
+  "pageSize": 100,
+  "oldClaim": "The catalog ends after the first page.",
+  "sharedReminder": "Review checklist RC-17 requires a replay command."
+}

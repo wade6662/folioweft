@@ -1,0 +1,10 @@
+{
+  "core_url": "http://127.0.0.1:8420",
+  "knowledge_url": "http://127.0.0.1:8424",
+  "service_id": "default",
+  "team_name": "Example Engineering",
+  "team_id": "REPLACE_WITH_TEAM_ID",
+  "user_id": "REPLACE_WITH_USER_ID",
+  "agent_id": "REPLACE_WITH_SHARED_AGENT_ID",
+  "api_key": "REPLACE_WITH_GATEWAY_BEARER"
+}

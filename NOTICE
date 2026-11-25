@@ -1,0 +1,25 @@
+FolioWeft
+
+The adapter, CLI, default routing profile and synthetic examples are
+distributed under the MIT license in LICENSE.
+
+Backend: TencentDB Agent Memory. Copyright (C) 2026 Tencent. All rights
+reserved. The adapter calls its HTTP API. The backend is installed separately.
+The original upstream notice and terms are in licenses/TencentDB-Agent-Memory.txt.
+Upstream MIT terms: https://github.com/TencentCloud/TencentDB-Agent-Memory/blob/main/LICENSE
+
+Protocol: @modelcontextprotocol/sdk, MIT. Copyright (c) 2024 Anthropic, PBC.
+npm installs the SDK and its dependencies. THIRD-PARTY-LICENSES.txt records
+the locked versions, declared licenses and hashes of the notices shipped by
+those packages. Distributors bundling them should include the original
+applicable notices, license terms and disclaimers with their distribution.
+
+Design reference: Anthropic, "The components of agent memory" (2026).
+https://www.anthropic.com/research/components-of-agent-memory
+The research informed the use of separate notes, a curated wiki and later
+review. The examples and review workflow in this repository are original.
+
+The CI workflow invokes actions/checkout and actions/setup-node from GitHub.
+The actions are fetched by the runner. Their licenses are published at
+https://github.com/actions/checkout/blob/v4/LICENSE and
+https://github.com/actions/setup-node/blob/v4/LICENSE.
