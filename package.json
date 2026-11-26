@@ -1,18 +1,19 @@
 {
   "name": "folioweft",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Evidence-linked team notebooks and Wiki memory over TencentDB Agent Memory",
+  "description": "Current project handoffs, decision history and evidence-linked team notebooks for local SQLite or TencentDB Agent Memory",
   "license": "MIT",
   "engines": {
     "node": ">=22.16"
   },
   "scripts": {
-    "test": "node --test src/team-memory.test.mjs",
+    "test": "node --test src/team-memory.test.mjs src/local-notebooks.test.mjs",
     "start": "node src/team-memory-mcp.mjs",
     "cli": "node src/team-memory-cli.mjs",
     "demo": "node examples/demo.mjs",
+    "measure:read": "node examples/measure-read.mjs",
     "licenses:check": "node scripts/check-licenses.mjs"
   },
   "dependencies": {

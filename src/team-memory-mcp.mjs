@@ -2,6 +2,8 @@ import metadata from "../package.json" with { type: "json" };
 import { Server, StdioServerTransport, CallToolRequestSchema, ListToolsRequestSchema } from "./sdk.mjs";
 import { MEMORY_SCOPES } from "./memory-blocks.mjs";
 import { NOTE_KINDS, TeamMemoryClient } from "./team-memory-client.mjs";
+import { LocalNotebooks, localDatabaseArg } from "./local-notebooks.mjs";
+import { getProgress, setProgress, progressStates } from "./progress.mjs";
 
 const args = process.argv.slice(2);
 const readOnly = args.includes("--read-only") || process.env.TEAM_MEMORY_MODE === "ro";
@@ -10,13 +12,18 @@ const defaultClient = clientFlagIdx !== -1 && args[clientFlagIdx + 1]
   ? args[clientFlagIdx + 1]
   : (process.env.TEAM_MEMORY_CLIENT || "mcp-client");
 
-const client = new TeamMemoryClient({ defaultSource: defaultClient });
+const file = localDatabaseArg(args);
+const notebooksOnly = Boolean(file) || args.includes("--notebooks-only");
+const client = file ? new LocalNotebooks(file, {defaultSource:defaultClient, readOnly})
+  : new TeamMemoryClient({ defaultSource: defaultClient });
 const reviewInputs = {
   wiki: {type:"string", description:"Existing team wiki path or canonical wiki ID"},
   sources: {type:"array", minItems:1, maxItems:8, items:{type:"string"}, description:"Notebook or reflection IDs from memory_browse"},
 };
 
 const READ_TOOLS = [
+  {name:"memory_get_progress",description:"Start a handoff here. List active topics, filter by state, or read a named topic and optional revision.",
+    inputSchema:{type:"object",additionalProperties:false,properties:{topic:{type:"string"},state:{enum:[...progressStates,"all"],type:"string"},version:{type:"integer",minimum:1}}}},
   {
     name:"memory_read_note",
     description:"Read one shared engineering notebook or reflection. Supply version to recover the exact cited revision while retained by MemoryCore.",
@@ -168,6 +175,9 @@ const READ_TOOLS = [
 ];
 
 const WRITE_TOOLS = [
+  {name:"memory_set_progress",description:"Maintain one current plan per topic. Supply the observed revision and reason when revising it.",
+    inputSchema:{type:"object",additionalProperties:false,required:["topic","state","plan"],properties:{
+      topic:{type:"string"},state:{type:"string",enum:progressStates},plan:{type:"string"},reason:{type:"string"},expected_version:{type:"integer",minimum:0}}}},
   {
     name:"memory_write_note",
     description:"Write one shared engineering notebook page for an AI, scope and stable topic. Use for observations, questions, experiments, decisions, lessons or corrections. Provide the current expected_version to revise a changed page.",
@@ -340,17 +350,24 @@ const WRITE_TOOLS = [
   },
 ];
 
-const TOOLS = readOnly ? READ_TOOLS : [...READ_TOOLS, ...WRITE_TOOLS];
+const notebookTools = new Set(["memory_get_progress", "memory_set_progress", "memory_browse", "memory_search", "memory_read_note", "memory_write_note",
+  "memory_dream_audit", "memory_prepare_note_review", "memory_publish_note_review"]);
+const available = readOnly ? READ_TOOLS : [...READ_TOOLS, ...WRITE_TOOLS];
+const TOOLS = notebooksOnly ? available.filter(t => notebookTools.has(t.name)) : available;
 
 const server = new Server(
   { name: metadata.name, version: metadata.version },
-  { capabilities: { tools: {} } },
+  { capabilities: { tools: {} }, instructions: "Start handoffs with memory_get_progress. When a plan changes, use memory_set_progress with the topic, observed version and reason. Browse by scope before reading a chunk. Keep observations in signed notes. At handoff, inspect the dream audit queue. Prepare a review, independently verify the cited evidence, then publish with the returned token. Keep disagreements proposed." },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: argsObj = {} } = req.params;
+  if (notebooksOnly && !notebookTools.has(name)) {
+    return {content:[{type:"text",text:"Denied: tool outside notebook profile"}],isError:true};
+  }
+  if (notebooksOnly && name === "memory_search" && argsObj.scope === undefined) argsObj.scope = "all";
   if (readOnly && (WRITE_TOOLS.some((t) => t.name === name) || (name === "memory_dream_consolidate" && argsObj.dry_run === false))) {
     return {
       content: [{ type: "text", text: `Denied: MCP server is running in read-only mode (${name} disabled).` }],
@@ -360,6 +377,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     let data;
     switch (name) {
+      case "memory_get_progress": data = await getProgress(client,argsObj); break;
+      case "memory_set_progress": data = await setProgress(client,argsObj); break;
       case "memory_read_note":
         data = await client.readNote(argsObj);
         break;

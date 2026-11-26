@@ -1,8 +1,14 @@
 import { TeamMemoryClient } from "./team-memory-client.mjs";
 import { readFileSync } from "node:fs";
+import { LocalNotebooks, localDatabaseArg } from "./local-notebooks.mjs";
+import { getProgress, setProgress } from "./progress.mjs";
 
 const [cmd, ...rest] = process.argv.slice(2);
-const client = new TeamMemoryClient({ defaultSource: process.env.TEAM_MEMORY_CLIENT || "cli" });
+const file = localDatabaseArg(rest);
+const notebookCommands = ["progress","set-progress","browse","search","read-note","write-note","prepare-note-review","publish-note-review","dream-audit"];
+if (file && !notebookCommands.includes(cmd)) throw Error("Local commands: " + notebookCommands.join(", "));
+const options = {defaultSource:process.env.TEAM_MEMORY_CLIENT || "cli"};
+const client = file ? new LocalNotebooks(file, options) : new TeamMemoryClient(options);
 
 function argVal(flag, fallback = undefined) {
   const idx = rest.indexOf(flag);
@@ -15,6 +21,14 @@ function hasFlag(flag) {
 
 async function main() {
   switch (cmd) {
+    case "progress":
+      console.log(JSON.stringify(await getProgress(client,{topic:argVal("--topic"),state:argVal("--state"),
+        version:hasFlag("--version") ? Number(argVal("--version")) : undefined}),null,2));
+      break;
+    case "set-progress":
+      console.log(JSON.stringify(await setProgress(client,{topic:argVal("--topic"),state:argVal("--state"),plan:argVal("--plan"),
+        reason:argVal("--reason"),expected_version:hasFlag("--version") ? Number(argVal("--version")) : undefined}),null,2));
+      break;
     case "read-note":
       console.log(JSON.stringify(await client.readNote({id:argVal("--id"),version:hasFlag("--version") ? Number(argVal("--version")) : undefined}), null, 2));
       break;

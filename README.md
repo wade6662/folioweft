@@ -1,8 +1,47 @@
 # FolioWeft
 
-让多个研发助手共享工程 Wiki，同时各自保留带署名、来源和版本的实验笔记。助手通过标准 stdio MCP 接入，也可以使用 Node CLI。后端使用 [TencentDB Agent Memory](https://github.com/TencentCloud/TencentDB-Agent-Memory) 的 MemoryCore v3 HTTP 接口。
+[English quick start](README.en.md)
 
-## 本地运行
+一个项目交接了十次，前三次都写着“继续用共享盘”，第七次才决定改用本地数据库。新来的助手搜到任何一份旧交接，都可能从已经放弃的方案接着做。FolioWeft 让团队按专题维护当前进度：接手先看仍在推进的方案，想知道为什么改，再读旧版本和变更原因。
+
+## 一分钟完成第一次交接
+
+下载或复制包含 `folio.mjs` 的这版源码，进入解压目录。装好 Node.js 22.16 或以上即可运行本地 CLI。SQLite 由 Node 提供，首次运行会在当前工作目录创建 `folioweft.sqlite`。
+
+```sh
+node folio.mjs set-progress --topic storage --state active --plan "试用共享盘"
+node folio.mjs set-progress --topic storage --state active --plan "使用本地 SQLite" --reason "共享盘锁测试失败" --version 1
+node folio.mjs
+node folio.mjs progress --topic storage
+```
+
+最后两条就是接手入口。第一条列出进行中的专题，第二条读出 storage 的当前方案、变更原因和版本 v2。要追溯共享盘方案，运行 `node folio.mjs progress --topic storage --version 1`，返回的 `is_current: false` 表明它是历史修订。
+
+| 交接时发生了什么 | 怎样记录和找回 |
+| --- | --- |
+| 同一专题换方案 | 沿用专题名，传上次读到的版本和变更原因。版本已变化时先重读。 |
+| 整个专题已放弃或完成 | 把状态设为 `dropped` 或 `done` 并写明原因。默认清单只列 `active`；用 `progress --state dropped` 查废案。 |
+| 已积累一批旧交接文件 | 先按专题整理目前还在执行的决定，在原因中记下依据。年代、文件名和出现次数都不足以判定哪个方案仍有效。 |
+
+每个数据库对应一个项目。可以从项目目录执行 `node /path/to/folio.mjs`，或传 `--local-db PATH` 指定文件。当前进度记录团队选择；要把实验结果发布为可追溯的 Wiki 结论，再使用独立笔记和复核流程。
+
+## 让 AI 通过 MCP 接手
+
+本地 CLI 仅用 Node 内置模块。MCP 接入需要在源码目录运行一次 `npm ci --ignore-scripts` 安装 SDK，然后把客户端指向同一个 SQLite 文件。接手先调 `memory_get_progress`；记入改动时调 `memory_set_progress`。
+
+```json
+{"mcpServers":{"folioweft":{"command":"node","args":["/absolute/path/to/src/team-memory-mcp.mjs","--local-db","/absolute/path/to/folioweft.sqlite","--client","Reviewer"]}}}
+```
+
+| 部署方式 | 可用功能 | 适用场景 |
+| --- | --- | --- |
+| 本地 SQLite | 9 个 MCP 工具，包含专题进度，支持分区检索、独立笔记、历史版本、复核和发布到预建的 `wiki/project-notes` | 一台机器上的可信助手；首次运行自动建库 |
+| MemoryCore 加 `--notebooks-only` | 同一组 9 个工具，使用已有团队 Wiki | 给日常助手收窄写入入口 |
+| MemoryCore 完整模式 | 30 个工具，包括直接编辑 Wiki、交接和归档；外部知识库检索另接 MemoryKnowledge | 管理与既有团队部署 |
+
+本地库依赖文件系统访问权限。选择已有的私有目录，关闭所有客户端后复制 SQLite 文件即可备份；笔记各版本都会保留。在已有库上加 `--read-only` 可启动只读 MCP。跨主机协作的写入边界见下文。用于助手的最短操作说明见 [协作提示词](docs/agent-workflow.md)。
+
+## 可选演示与回归测试
 
 需要 Node.js 22.16 或以上和 npm。在包含本 README 和 package.json 的目录执行以下命令。首次安装从 npm 下载锁定依赖，随后可以离线运行演示和测试。
 
@@ -49,10 +88,22 @@ npm run cli -- view --path MEMORY.md
 
 ## 写入、归档与恢复
 
+以下说明适用于 MemoryCore 完整模式。笔记复核工具会检查来源和目标版本，完整模式也允许有写权限的助手直接修订 Wiki。来源数量和署名本身不能证明结论正确。
+
+MemoryCore 模式在发布前重读来源，然后对目标 Wiki 做版本检查。如果另一个写入者恰在两步之间更新来源，Wiki 可能引用刚过时的版本，引用仍指向原修订。对必须同时核对所有来源的任务，本地 SQLite 模式会在同一条写入语句中检查来源和目标版本。
+
 - 同一主机上的适配器通过 SQLite 排他锁协调写操作，并使用后端 Skill 版本检查。默认锁目录位于当前用户的临时目录。多个进程或容器共用后端时，应让它们在同一主机使用同一个支持文件锁的本地 `TEAM_MEMORY_LOCK_DIR`。直接访问后端、旧客户端和跨主机写入超出这项保护。多机部署应先提供服务端条件删除和顶层条件写入，或统一通过单一写入服务。
 - `memory_add_handoff` 会依次写对话日志、最新交接与专题页。中途连接失败时，先查看 `handoffs/latest` 和目标 Wiki 再决定是否补交。服务端尚无跨这三步的事务。
 - `memory_dream_consolidate` 默认预览；应用需要显式 `dry_run=false`。归档存放在 `~/.team-memory/archive`，可用 `TEAM_MEMORY_ARCHIVE_DIR` 覆盖。备份整个目录，包含交接原文 JSONL 与 obsolete 子目录中的哈希冷备。永久删除前先核对归档与指针版本。
 - `verified` 表示写入者提供了核验依据。事实复核由使用工具的助手或人完成。作者名和分区供协作组织，访问权限应由网关及部署环境控制。部署时限制绑定文件和冷备目录的读取权限，远程访问使用受保护的连接。
+
+## 一次按需读取能少传多少内容
+
+可以用 `npm run measure:read` 复跑一个检索实验。脚本向本地 Wiki 发布 32 条虚构事实，然后查找指定作业的退出码。在一次运行中，完整 Wiki 文本为 11,350 个 UTF-8 字节，检索结果加命中块的 JSON 合计为 895 字节，两条路径均找到退出码 17。这里测的是传回客户端的数据量；模型 token、真实任务正确率和相对腾讯原版的收益仍待对照实验。
+
+## 后续方向：私有 GitHub 仓库同步
+
+未来可以把选定的专题现状与版本引用导出到独立的私有 GitHub 仓库，让新设备或获授权的队友恢复项目进度。实现前需要定义导出范围、成员读写权限、撤权后已有副本的处理，以及两台设备同时修改时怎样解决冲突。当前版本只提供本地文件和自行部署的团队后端；以上是设计方向。
 
 ## 来源与许可
 
